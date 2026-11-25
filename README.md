@@ -8,8 +8,9 @@ A zero-dependency 3D IDE-style synchronized lyrics visualizer extension for **Sp
 
 ## Features
 
-- **3D Code Lyrics Stage**: Tokenizes Spotify synced lyrics with live word tracking, depth-of-field blur, and dynamic vocal zoom.
-- **Spotify Color Lyrics & Album Showcase**: Pulls live synced lyrics from Spotify with automatic album-art color extraction and an optional Album Cover Showcase view.
+- **3D Code Lyrics & Live Typewriter Mode**: Tokenizes Spotify synced lyrics with a smooth **Depth-of-Field cascade** (distance-tier blur and sung vs. upcoming word contrast), dynamic vocal zoom, or **Live Typewriter** mode with character-by-character reveal and a gliding IDE caret (LTR & RTL safe).
+- **Spotify Color Lyrics & Album Showcase Glow**: Pulls live synced lyrics from Spotify with automatic album-art color extraction and an optional Album Cover Showcase view enhanced with a theme-reactive ambient **Album Glow**.
+- **JSON Preset Export / Import**: Back up or share your visual, layout, and reveal settings with validated **Copy Preset** / **Import Preset** JSON controls in Settings.
 - **Adlib Comments & Multi-Language Support**: Formats adlibs as IDE `// comments` (`Separate`, `Hide`, `Inline`), supports inline romanization/translation annotations, and handles Latin, CJK, Cyrillic, and RTL scripts (Persian, Arabic, Hebrew).
 - **Edit & Recording Mode**: Toggle **Clean Feed** (`E`), switch backdrops (`Ambient`, `Vignette`, `Black`, `Green`/`Blue` chroma, or custom image/video), and enable `9:16`, `16:9`, or `1:1` framing guides.
 - **Lock Screen & Screensaver**: Fullscreen ambient view with clock, date, and track card, plus configurable auto-idle timeouts (`30s`, `1m`, `2m`, `5m`).

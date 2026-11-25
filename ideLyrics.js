@@ -19,6 +19,9 @@
 
   const VALID_BACKDROP_MODES = ["ambient", "simple", "custom", "vignette", "black", "green", "blue"];
   const VALID_FRAME_RATIOS = ["off", "9:16", "16:9", "1:1"];
+  const VALID_REVEAL_MODES = ["highlight", "typewriter"];
+  const PRESET_FORMAT = "ide-lyrics-preset";
+  const PRESET_VERSION = 1;
   const EDIT_FRAME_RATIO_MAP = { "9:16": 9 / 16, "16:9": 16 / 9, "1:1": 1.0 };
 
   function normalizeBackdropMode(mode) {
@@ -27,6 +30,10 @@
 
   function normalizeFrameRatio(ratio) {
     return VALID_FRAME_RATIOS.includes(ratio) ? ratio : "off";
+  }
+
+  function normalizeRevealMode(mode) {
+    return VALID_REVEAL_MODES.includes(mode) ? mode : "highlight";
   }
 
   function isSolidBackdrop(mode) {
@@ -65,6 +72,7 @@
     themePreset: "cyberpunk",
     showCoverShowcase: true,
     activeLineOnly: false,
+    lyricRevealMode: "highlight",
     syncOffsetMs: 0,
     cleanFeed: false,
     backdropMode: "ambient",
@@ -219,8 +227,11 @@
       this.settings = { ...DEFAULT_SETTINGS, ...storedSettings, cleanFeed: false };
       this.settings.backdropMode = normalizeBackdropMode(this.settings.backdropMode);
       this.settings.frameRatio = normalizeFrameRatio(this.settings.frameRatio);
+      this.settings.lyricRevealMode = normalizeRevealMode(this.settings.lyricRevealMode);
       this.settings.showFrameGuide = this.settings.showFrameGuide !== false;
       this.settings.cinematicFx = this.settings.cinematicFx !== false;
+      this._lastRevealMode = null;
+      this._presetFeedbackTimer = null;
       this._ambientMotes = null;
       this._lastCinematicBassStr = "";
       this._lastVignetteOpacityStr = "";
@@ -433,9 +444,19 @@
           border-left: 4px solid transparent;
           border-radius: 8px;
           transition: opacity 0.25s ease, filter 0.25s ease, transform 0.25s ease, background 0.2s ease, border-color 0.2s ease;
-          opacity: 0.18;
-          filter: blur(2.2px);
+          opacity: 0.14;
+          filter: blur(2.5px);
           cursor: pointer;
+        }
+
+        .spicetify-ide-line.is-near-1 {
+          opacity: 0.50;
+          filter: blur(0.6px);
+        }
+
+        .spicetify-ide-line.is-near-2 {
+          opacity: 0.28;
+          filter: blur(1.5px);
         }
 
         .spicetify-ide-line.is-active-line {
@@ -458,8 +479,17 @@
           filter: brightness(1.3) drop-shadow(0 0 6px color-mix(in srgb, var(--tok-keyword) 27%, transparent));
         }
 
+        .spicetify-ide-plane:not(.is-typewriter) .spicetify-ide-line.is-active-line .spicetify-code-token.is-sung {
+          opacity: 0.96;
+        }
+
+        .spicetify-ide-plane:not(.is-typewriter) .spicetify-ide-line.is-active-line .spicetify-code-token.is-upcoming {
+          opacity: 0.56;
+        }
+
         .spicetify-ide-line:hover {
-          opacity: 0.65;
+          opacity: 0.72;
+          filter: blur(0px);
         }
 
         /* L1: Multi-Language Inline Code Comments */
@@ -584,6 +614,7 @@
 
         .spicetify-code-token.active-word {
           color: #ffffff !important;
+          opacity: 1 !important;
           text-shadow: 0 0 calc(12px * var(--ide-glow-mult)) var(--tok-keyword), 0 0 calc(24px * var(--ide-glow-mult)) var(--tok-method);
           transform: scale(1.18);
           font-weight: 800;
@@ -597,6 +628,63 @@
           0% { transform: scale(1); }
           50% { transform: scale(1.24) translateY(-2px); }
           100% { transform: scale(1.18); }
+        }
+
+        /* Live Typewriter Mode */
+        .spicetify-ide-plane.is-typewriter .spicetify-ide-line.is-future-line {
+          opacity: 0 !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
+        }
+
+        .spicetify-ide-plane.is-typewriter .spicetify-code-token {
+          transition: color 0.14s ease, text-shadow 0.14s ease;
+        }
+
+        .spicetify-ide-plane.is-typewriter .spicetify-code-token.is-untyped {
+          opacity: 0 !important;
+          visibility: hidden !important;
+        }
+
+        .spicetify-ide-plane.is-typewriter .spicetify-code-token.is-typing {
+          clip-path: inset(0 calc(100% - var(--type-pct, 100%)) 0 0);
+          color: #ffffff;
+          text-shadow: 0 0 calc(10px * var(--ide-glow-mult, 1)) #ffffff, 0 0 calc(20px * var(--ide-glow-mult, 1)) var(--tok-keyword);
+        }
+
+        .spicetify-ide-plane.is-typewriter .spicetify-ide-line.is-rtl .spicetify-code-token.is-typing {
+          clip-path: inset(0 0 0 calc(100% - var(--type-pct, 100%)));
+        }
+
+        .spicetify-tw-caret {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 3px;
+          height: 1.12em;
+          border-radius: 2px;
+          background: var(--tok-keyword, #ff4fa8);
+          box-shadow: 0 0 calc(10px * var(--ide-glow-mult, 1)) var(--tok-keyword, #ff4fa8), 0 0 16px rgba(255, 255, 255, 0.85);
+          pointer-events: none;
+          z-index: 4;
+          display: none;
+          will-change: transform;
+          transition: transform 55ms linear;
+          animation: spicetifyTwCaretBlink 0.85s steps(2, start) infinite;
+        }
+
+        .spicetify-tw-caret.is-typing-solid {
+          animation: none;
+          opacity: 1;
+        }
+
+        .spicetify-ide-plane.is-typewriter .spicetify-ide-line.is-active-line .spicetify-tw-caret.is-visible {
+          display: block;
+        }
+
+        @keyframes spicetifyTwCaretBlink {
+          0%, 49% { opacity: 1; }
+          50%, 100% { opacity: 0.22; }
         }
 
         /* Floating Pill */
@@ -823,6 +911,85 @@
           justify-content: space-between;
         }
 
+        .spicetify-preset-actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .spicetify-preset-btn {
+          flex: 1;
+          min-width: 110px;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          color: #f8fafc;
+          font-size: 11.5px;
+          font-weight: 600;
+          padding: 6px 12px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        }
+
+        .spicetify-preset-btn:hover {
+          background: color-mix(in srgb, var(--tok-keyword) 28%, rgba(255, 255, 255, 0.08));
+          border-color: var(--tok-keyword);
+          color: #ffffff;
+        }
+
+        .spicetify-preset-btn.is-primary {
+          background: linear-gradient(135deg, var(--tok-keyword) 0%, var(--tok-method) 100%);
+          border-color: transparent;
+          color: #ffffff;
+        }
+
+        .spicetify-preset-import-box {
+          display: none;
+          flex-direction: column;
+          gap: 8px;
+          margin-top: 10px;
+        }
+
+        .spicetify-preset-import-box.is-open {
+          display: flex;
+        }
+
+        .spicetify-preset-textarea {
+          width: 100%;
+          box-sizing: border-box;
+          resize: vertical;
+          min-height: 76px;
+          background: rgba(0, 0, 0, 0.42);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          border-radius: 8px;
+          padding: 8px 10px;
+          color: #f8fafc;
+          font-family: var(--sp-ide-font);
+          font-size: 11px;
+          line-height: 1.4;
+          outline: none;
+        }
+
+        .spicetify-preset-textarea:focus {
+          border-color: var(--tok-keyword);
+        }
+
+        .spicetify-preset-feedback {
+          min-height: 16px;
+          margin-top: 8px;
+          font-size: 11px;
+          color: rgba(255, 255, 255, 0.72);
+          transition: opacity 0.2s ease, color 0.2s ease;
+        }
+
+        .spicetify-preset-feedback.is-ok {
+          color: var(--tok-string, #2dd4bf);
+        }
+
+        .spicetify-preset-feedback.is-err {
+          color: #fb7185;
+        }
+
         /* Ambient Lock Screen Overlay */
         #spicetify-ide-lock-overlay {
           position: fixed;
@@ -987,9 +1154,23 @@
           top: 50%;
           transform: translateY(-50%);
           z-index: 18;
-          width: clamp(240px, 24vw, 360px);
+          width: clamp(248px, 24vw, 368px);
           max-height: 92vh;
           box-sizing: border-box;
+          padding: 16px;
+          border-radius: 26px;
+          background: linear-gradient(
+            160deg,
+            color-mix(in srgb, var(--tok-keyword) 10%, rgba(14, 12, 24, 0.54)) 0%,
+            rgba(10, 9, 18, 0.42) 100%
+          );
+          border: 1px solid color-mix(in srgb, var(--tok-keyword) 22%, rgba(255, 255, 255, 0.12));
+          box-shadow:
+            0 18px 48px rgba(0, 0, 0, 0.56),
+            0 0 calc(46px * var(--ide-glow-mult, 1)) color-mix(in srgb, var(--tok-keyword) 24%, transparent),
+            0 0 calc(84px * var(--ide-glow-mult, 1)) color-mix(in srgb, var(--tok-method) 14%, transparent);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
           display: none;
           flex-direction: column;
           align-items: center;
@@ -998,11 +1179,46 @@
           pointer-events: auto;
           overflow-y: auto;
           scrollbar-width: none;
+          transition: box-shadow 0.45s ease, border-color 0.45s ease, background 0.45s ease;
+        }
+        #spicetify-ide-cover-showcase::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          pointer-events: none;
+          z-index: 0;
+          background: radial-gradient(
+            circle at 50% 24%,
+            color-mix(in srgb, var(--tok-keyword) 22%, transparent) 0%,
+            color-mix(in srgb, var(--tok-method) 11%, transparent) 44%,
+            transparent 74%
+          );
+          opacity: 0.85;
+          transition: opacity 0.4s ease;
+        }
+        #spicetify-ide-cover-showcase > * {
+          position: relative;
+          z-index: 1;
         }
         #spicetify-ide-cover-showcase::-webkit-scrollbar { display: none; }
         #spicetify-ide-visualizer-root.has-cover-showcase #spicetify-ide-cover-showcase { display: flex; }
         #spicetify-ide-visualizer-root.has-cover-showcase .spicetify-ide-stage {
           padding-left: clamp(280px, 28vw, 420px);
+        }
+        #spicetify-ide-visualizer-root.is-cinematic-fx #spicetify-ide-cover-showcase {
+          box-shadow:
+            0 18px 48px rgba(0, 0, 0, 0.56),
+            0 0 calc((46px + 18px * var(--cinematic-bass, 0)) * var(--ide-glow-mult, 1)) color-mix(in srgb, var(--tok-keyword) 28%, transparent),
+            0 0 calc((84px + 26px * var(--cinematic-bass, 0)) * var(--ide-glow-mult, 1)) color-mix(in srgb, var(--tok-method) 16%, transparent);
+        }
+        #spicetify-ide-visualizer-root.is-solid-backdrop #spicetify-ide-cover-showcase {
+          box-shadow: none !important;
+          background: rgba(12, 10, 20, 0.86);
+          transition: none !important;
+        }
+        #spicetify-ide-visualizer-root.is-solid-backdrop #spicetify-ide-cover-showcase::before {
+          display: none;
         }
         #spicetify-ide-visualizer-root.is-compact #spicetify-ide-cover-showcase { display: none !important; }
         #spicetify-ide-visualizer-root.is-compact #spicetify-ide-floating-pill button[data-act="toggle-focus"],
@@ -1014,17 +1230,24 @@
           position: relative;
           width: 100%;
           aspect-ratio: 1 / 1;
-          border-radius: 22px;
+          border-radius: 20px;
           overflow: hidden;
-          border: 1.5px solid rgba(255, 255, 255, 0.22);
+          border: 1.5px solid color-mix(in srgb, var(--tok-keyword) 30%, rgba(255, 255, 255, 0.2));
           background: rgba(15, 8, 28, 0.75);
-          box-shadow: 0 26px 65px rgba(0, 0, 0, 0.85), 0 0 42px rgba(255, 79, 168, 0.22);
+          box-shadow:
+            0 20px 52px rgba(0, 0, 0, 0.78),
+            0 0 calc(36px * var(--ide-glow-mult, 1)) color-mix(in srgb, var(--tok-keyword) 28%, transparent),
+            0 0 calc(62px * var(--ide-glow-mult, 1)) color-mix(in srgb, var(--tok-method) 15%, transparent);
           cursor: pointer;
-          transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+          transition: transform 0.28s ease, box-shadow 0.35s ease, border-color 0.28s ease;
         }
         .spicetify-cover-art-frame:hover {
           transform: translateY(-4px) scale(1.02);
           border-color: var(--tok-keyword);
+          box-shadow:
+            0 24px 58px rgba(0, 0, 0, 0.82),
+            0 0 calc(46px * var(--ide-glow-mult, 1)) color-mix(in srgb, var(--tok-keyword) 38%, transparent),
+            0 0 calc(78px * var(--ide-glow-mult, 1)) color-mix(in srgb, var(--tok-method) 20%, transparent);
         }
         .spicetify-cover-art-img {
           width: 100%;
@@ -1193,8 +1416,12 @@
           gap: 5px;
         }
         .spicetify-cover-sub-btn.is-active {
-          background: linear-gradient(135deg, rgba(255, 79, 168, 0.5) 0%, rgba(255, 153, 34, 0.4) 100%);
-          border-color: rgba(255, 232, 214, 0.78);
+          background: linear-gradient(
+            135deg,
+            color-mix(in srgb, var(--tok-keyword) 50%, transparent) 0%,
+            color-mix(in srgb, var(--tok-method) 40%, transparent) 100%
+          );
+          border-color: color-mix(in srgb, var(--tok-keyword) 65%, rgba(255, 255, 255, 0.55));
           color: #fff;
         }
 
@@ -1309,6 +1536,7 @@
           opacity: 0 !important;
           visibility: hidden !important;
           pointer-events: none !important;
+          transition: none !important;
         }
         #spicetify-ide-visualizer-root.is-fullscreen.is-cursor-idle,
         #spicetify-ide-visualizer-root.is-fullscreen.is-cursor-idle * {
@@ -1451,15 +1679,23 @@
           background: transparent !important;
           box-shadow: none !important;
           filter: none !important;
+          transition: none !important;
         }
 
         #spicetify-ide-visualizer-root[data-backdrop="green"] .spicetify-code-token,
         #spicetify-ide-visualizer-root[data-backdrop="blue"] .spicetify-code-token,
         #spicetify-ide-visualizer-root[data-backdrop="green"] .spicetify-code-token.active-word,
-        #spicetify-ide-visualizer-root[data-backdrop="blue"] .spicetify-code-token.active-word {
+        #spicetify-ide-visualizer-root[data-backdrop="blue"] .spicetify-code-token.active-word,
+        #spicetify-ide-visualizer-root[data-backdrop="green"] .spicetify-code-token.is-typing,
+        #spicetify-ide-visualizer-root[data-backdrop="blue"] .spicetify-code-token.is-typing {
           text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85) !important;
           box-shadow: none !important;
           filter: none !important;
+        }
+
+        #spicetify-ide-visualizer-root[data-backdrop="green"] .spicetify-tw-caret,
+        #spicetify-ide-visualizer-root[data-backdrop="blue"] .spicetify-tw-caret {
+          box-shadow: none !important;
         }
 
         #spicetify-ide-visualizer-root[data-backdrop="vignette"] #spicetify-ide-canvas {
@@ -1803,6 +2039,15 @@
             </div>
             <div class="spicetify-settings-row">
               <div class="spicetify-settings-label-row">
+                <label>Lyric Reveal Mode</label>
+                <div class="spicetify-settings-btn-group" data-group="lyricRevealMode">
+                  <button type="button" class="spicetify-group-btn ${normalizeRevealMode(this.settings.lyricRevealMode) === 'highlight' ? 'is-active' : ''}" data-val="highlight">Highlight</button>
+                  <button type="button" class="spicetify-group-btn ${normalizeRevealMode(this.settings.lyricRevealMode) === 'typewriter' ? 'is-active' : ''}" data-val="typewriter">Typewriter</button>
+                </div>
+              </div>
+            </div>
+            <div class="spicetify-settings-row">
+              <div class="spicetify-settings-label-row">
                 <label>Word Focus Zoom</label>
                 <div class="spicetify-settings-btn-group" data-group="dynamicWordZoom">
                   <button type="button" class="spicetify-group-btn ${this.settings.dynamicWordZoom ? 'is-active' : ''}" data-val="true">ON</button>
@@ -2039,6 +2284,22 @@
             </div>
           </div>
           <div class="spicetify-settings-section">
+            <div class="spicetify-settings-section-title">Presets &amp; Backup (JSON)</div>
+            <div class="spicetify-preset-actions">
+              <button type="button" class="spicetify-preset-btn" data-act="copy-preset">Copy Preset</button>
+              <button type="button" class="spicetify-preset-btn" data-act="import-preset">Import Preset</button>
+            </div>
+            <div class="spicetify-preset-import-box" data-preset-import-box>
+              <textarea class="spicetify-preset-textarea" data-preset-input rows="4" placeholder='Paste preset JSON here (e.g. {"themePreset":"dracula","lyricRevealMode":"typewriter"})'></textarea>
+              <div class="spicetify-preset-actions">
+                <button type="button" class="spicetify-preset-btn is-primary" data-act="apply-preset-import">Apply Preset</button>
+                <button type="button" class="spicetify-preset-btn" data-act="cancel-preset-import">Cancel</button>
+              </div>
+            </div>
+            <div class="spicetify-preset-feedback" data-preset-feedback aria-live="polite"></div>
+          </div>
+
+          <div class="spicetify-settings-section">
             <div class="spicetify-settings-section-title">Keyboard Shortcuts</div>
             <div class="spicetify-keybinds-list" id="spicetify-keybinds-list"></div>
             <div class="spicetify-settings-row" style="margin-top: 6px;">
@@ -2101,6 +2362,7 @@
           if (key === "idleTimeout") val = parseInt(val, 10);
           else if (key === "backdropMode") val = normalizeBackdropMode(val);
           else if (key === "frameRatio") val = normalizeFrameRatio(val);
+          else if (key === "lyricRevealMode") val = normalizeRevealMode(val);
           else if (["showBackgroundVocals", "matchSongTheme", "dynamicWordZoom", "showCoverShowcase", "activeLineOnly", "showFrameGuide", "cinematicFx"].includes(key)) {
             val = (val === "true");
           }
@@ -2111,6 +2373,10 @@
             this.updateTextDirection();
             if (this.codePlane) this.codePlane.classList.toggle("is-rtl", !!this.isRtlSong);
             (this.cachedLineNodes || []).forEach(node => node.row?.classList?.toggle("is-rtl", !!this.isRtlSong));
+            this.syncWordCursor(this.currentTime || 0);
+          } else if (key === "lyricRevealMode") {
+            this.applyLyricRevealMode();
+            this.syncWordCursor(this.currentTime || 0);
           } else if (key === "annotationMode" || key === "showBackgroundVocals") {
             this.buildCodeDOM();
             this.syncWordCursor(this.currentTime || 0);
@@ -2157,6 +2423,35 @@
           if (urlInput) urlInput.value = "";
           return;
         }
+        if (btn.dataset.act === "copy-preset") {
+          this.copySettingsPreset();
+          return;
+        } else if (btn.dataset.act === "import-preset") {
+          const box = this.settingsPanel.querySelector("[data-preset-import-box]");
+          const input = this.settingsPanel.querySelector("[data-preset-input]");
+          if (box) {
+            const isOpen = box.classList.toggle("is-open");
+            if (isOpen && input) {
+              input.focus();
+            }
+          }
+          return;
+        } else if (btn.dataset.act === "apply-preset-import") {
+          const box = this.settingsPanel.querySelector("[data-preset-import-box]");
+          const input = this.settingsPanel.querySelector("[data-preset-input]");
+          const result = this.importSettingsPreset(input ? input.value : "");
+          if (result.ok && box) {
+            box.classList.remove("is-open");
+            if (input) input.value = "";
+          }
+          return;
+        } else if (btn.dataset.act === "cancel-preset-import") {
+          const box = this.settingsPanel.querySelector("[data-preset-import-box]");
+          const input = this.settingsPanel.querySelector("[data-preset-input]");
+          if (box) box.classList.remove("is-open");
+          if (input) input.value = "";
+          return;
+        }
         if (btn.dataset.act === "reset-keybinds") {
           this.keybinds = Object.assign({}, DEFAULT_KEYBINDS);
           try {
@@ -2171,7 +2466,9 @@
         } else if (btn.dataset.act === "reset-settings") {
           Object.assign(this.settings, DEFAULT_SETTINGS);
           this.settings.cleanFeed = false;
+          this.settings.lyricRevealMode = normalizeRevealMode(this.settings.lyricRevealMode);
           this.applyEditStudioState();
+          this.applyLyricRevealMode();
           this.showCoverShowcase = this.settings.showCoverShowcase !== false;
           this.saveSettings();
           if (this.settings.matchSongTheme) this.refreshCurrentTrackArtwork(true);
@@ -2241,6 +2538,7 @@
       document.addEventListener("fullscreenchange", this._fullscreenChangeHandler);
       this.resizeCanvas();
       this.applyPaletteToCSS(this.palette);
+      this.applyLyricRevealMode();
       this.applyVisualStyles();
       this.syncControlsUI();
     }
@@ -2832,6 +3130,7 @@
         syncGroup("matchSongTheme", !!this.settings.matchSongTheme);
         syncGroup("themePreset", this.settings.themePreset || "cyberpunk");
         syncGroup("syntaxStyle", this.settings.syntaxStyle || "mixed");
+        syncGroup("lyricRevealMode", normalizeRevealMode(this.settings.lyricRevealMode));
         syncGroup("dynamicWordZoom", !!this.settings.dynamicWordZoom);
         syncGroup("activeLineOnly", !!this.settings.activeLineOnly);
         syncGroup("cleanFeed", !!this.settings.cleanFeed);
@@ -2875,6 +3174,14 @@
           const r = Math.round(v || 0);
           return `${r > 0 ? "+" : ""}${r}ms`;
         });
+        const bgOpSl = this.settingsPanel.querySelector('input[data-key="customBgOpacity"]');
+        const bgOpLbl = this.settingsPanel.querySelector('[data-val="customBgOpacity"]');
+        if (bgOpSl) bgOpSl.value = String(this.settings.customBgOpacity ?? 0.6);
+        if (bgOpLbl) bgOpLbl.textContent = `${Math.round((this.settings.customBgOpacity ?? 0.6) * 100)}%`;
+        const bgBlurSl = this.settingsPanel.querySelector('input[data-key="customBgBlur"]');
+        const bgBlurLbl = this.settingsPanel.querySelector('[data-val="customBgBlur"]');
+        if (bgBlurSl) bgBlurSl.value = String(this.settings.customBgBlur ?? 0);
+        if (bgBlurLbl) bgBlurLbl.textContent = `${Math.round(this.settings.customBgBlur ?? 0)}px`;
       }
     }
 
@@ -2994,6 +3301,263 @@
         const { cleanFeed, ...persisted } = this.settings;
         localStorage.setItem("spicetify_ide_lyrics_settings", JSON.stringify(persisted));
       } catch (e) {}
+    }
+
+    applyLyricRevealMode() {
+      const mode = normalizeRevealMode(this.settings.lyricRevealMode);
+      this.settings.lyricRevealMode = mode;
+      if (this.codePlane) {
+        this.codePlane.classList.toggle("is-typewriter", mode === "typewriter");
+      }
+      this._lastRevealMode = null;
+      this.activeTokenIndex = -1;
+    }
+
+    showPresetFeedback(message, isError = false) {
+      if (!this.settingsPanel) return;
+      const el = this.settingsPanel.querySelector("[data-preset-feedback]");
+      if (!el) return;
+      el.textContent = String(message || "");
+      el.classList.toggle("is-ok", !isError && Boolean(message));
+      el.classList.toggle("is-err", isError && Boolean(message));
+      if (this._presetFeedbackTimer) {
+        clearTimeout(this._presetFeedbackTimer);
+        this._presetFeedbackTimer = null;
+      }
+      if (message) {
+        this._presetFeedbackTimer = setTimeout(() => {
+          el.textContent = "";
+          el.classList.remove("is-ok", "is-err");
+          this._presetFeedbackTimer = null;
+        }, 4000);
+      }
+    }
+
+    exportSettingsPreset() {
+      const { cleanFeed, ...persisted } = this.settings;
+      const safeCustomUrl = typeof persisted.customBgUrl === "string" && /^https?:\/\//i.test(persisted.customBgUrl.trim())
+        ? persisted.customBgUrl.trim()
+        : "";
+      const payload = {
+        format: PRESET_FORMAT,
+        version: PRESET_VERSION,
+        target: "spicetify",
+        settings: {
+          ...persisted,
+          backdropMode: normalizeBackdropMode(persisted.backdropMode),
+          frameRatio: normalizeFrameRatio(persisted.frameRatio),
+          lyricRevealMode: normalizeRevealMode(persisted.lyricRevealMode),
+          customBgUrl: safeCustomUrl
+        }
+      };
+      return JSON.stringify(payload, null, 2);
+    }
+
+    copySettingsPreset() {
+      const json = this.exportSettingsPreset();
+      const onSuccess = () => this.showPresetFeedback("Preset JSON copied to clipboard.", false);
+      const fallbackCopy = () => {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = json;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          ta.style.pointerEvents = "none";
+          document.body.appendChild(ta);
+          ta.select();
+          const ok = typeof document.execCommand === "function" && document.execCommand("copy");
+          ta.remove();
+          if (ok) {
+            onSuccess();
+            return;
+          }
+        } catch (err) {}
+        this.showPresetFeedback("Preset ready below (copy manually).", false);
+        const box = this.settingsPanel?.querySelector("[data-preset-import-box]");
+        const input = this.settingsPanel?.querySelector("[data-preset-input]");
+        if (box) box.classList.add("is-open");
+        if (input) {
+          input.value = json;
+          if (typeof input.select === "function") input.select();
+        }
+      };
+
+      if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        try {
+          const res = navigator.clipboard.writeText(json);
+          if (res && typeof res.then === "function") {
+            res.then(onSuccess).catch(fallbackCopy);
+            return json;
+          }
+          onSuccess();
+          return json;
+        } catch (err) {
+          fallbackCopy();
+          return json;
+        }
+      }
+      fallbackCopy();
+      return json;
+    }
+
+    importSettingsPreset(rawInput) {
+      if (typeof rawInput !== "string" || !rawInput.trim()) {
+        const error = "Paste a JSON preset first.";
+        this.showPresetFeedback(error, true);
+        return { ok: false, error };
+      }
+      const trimmed = rawInput.trim();
+      if (trimmed.length > 50000) {
+        const error = "Preset JSON exceeds maximum size.";
+        this.showPresetFeedback(error, true);
+        return { ok: false, error };
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch (err) {
+        const error = "Invalid JSON syntax.";
+        this.showPresetFeedback(error, true);
+        return { ok: false, error };
+      }
+
+      const isPlainObj = (v) => Boolean(v) && typeof v === "object" && !Array.isArray(v);
+      if (!isPlainObj(parsed)) {
+        const error = "Preset must be a JSON object.";
+        this.showPresetFeedback(error, true);
+        return { ok: false, error };
+      }
+
+      let sourceSettings = parsed;
+      if (Object.prototype.hasOwnProperty.call(parsed, "settings")) {
+        if (!isPlainObj(parsed.settings)) {
+          const error = "Preset settings field must be an object.";
+          this.showPresetFeedback(error, true);
+          return { ok: false, error };
+        }
+        sourceSettings = parsed.settings;
+      }
+
+      const numRanges = {
+        rotX: [-30, 45],
+        rotY: [-45, 45],
+        rotZ: [-45, 45],
+        fontSize: [16, 64],
+        lineSpacing: [0.6, 2.2],
+        tokenPadding: [0, 16],
+        lineGutter: [0, 20],
+        waveAmplitude: [0, 3],
+        dofStrength: [0, 1.5],
+        glowIntensity: [0.2, 2.5],
+        wordZoomScale: [1.0, 2.0],
+        bounceIntensity: [0, 3.0],
+        idleTimeout: [0, 3600],
+        syncOffsetMs: [-1000, 1000],
+        customBgOpacity: [0.15, 1.0],
+        customBgBlur: [0, 16]
+      };
+      const boolKeys = new Set([
+        "dynamicWordZoom",
+        "wordTracking",
+        "beatBounce",
+        "showBackgroundVocals",
+        "matchSongTheme",
+        "showCoverShowcase",
+        "activeLineOnly",
+        "showFrameGuide",
+        "cinematicFx"
+      ]);
+      const enumMap = {
+        wordTrackingMode: ["stable", "live", "anticipate"],
+        idleMode: ["off", "screensaver", "lock"],
+        textDirection: ["auto", "ltr", "rtl"],
+        annotationMode: ["off", "roman", "trans", "both"],
+        adlibMode: ["separate", "hide", "inline"],
+        syntaxStyle: ["mixed", "oop", "control", "pattern"],
+        themePreset: Object.keys(CURATED_THEMES),
+        backdropMode: VALID_BACKDROP_MODES,
+        frameRatio: VALID_FRAME_RATIOS,
+        lyricRevealMode: VALID_REVEAL_MODES,
+        customBgType: ["image", "video"]
+      };
+
+      const validated = {};
+      let appliedCount = 0;
+
+      for (const [key, value] of Object.entries(sourceSettings)) {
+        if (key === "__proto__" || key === "constructor" || key === "prototype" || key === "cleanFeed") continue;
+        if (Object.prototype.hasOwnProperty.call(numRanges, key)) {
+          if (typeof value === "number" && Number.isFinite(value)) {
+            const [min, max] = numRanges[key];
+            validated[key] = Math.max(min, Math.min(max, value));
+            appliedCount++;
+          }
+        } else if (boolKeys.has(key)) {
+          if (typeof value === "boolean") {
+            validated[key] = value;
+            appliedCount++;
+          }
+        } else if (Object.prototype.hasOwnProperty.call(enumMap, key)) {
+          if (typeof value === "string" && enumMap[key].includes(value)) {
+            validated[key] = value;
+            appliedCount++;
+          }
+        } else if (key === "customBgUrl") {
+          if (typeof value === "string") {
+            const url = value.trim();
+            if (url === "" || /^https?:\/\//i.test(url)) {
+              validated[key] = url;
+              appliedCount++;
+            }
+          }
+        }
+      }
+
+      if (appliedCount === 0) {
+        const error = "No valid settings found in preset.";
+        this.showPresetFeedback(error, true);
+        return { ok: false, error };
+      }
+
+      if (Object.prototype.hasOwnProperty.call(validated, "themePreset") && !Object.prototype.hasOwnProperty.call(validated, "matchSongTheme")) {
+        validated.matchSongTheme = false;
+      }
+
+      Object.assign(this.settings, validated);
+      this.settings.cleanFeed = false;
+      this.settings.backdropMode = normalizeBackdropMode(this.settings.backdropMode);
+      this.settings.frameRatio = normalizeFrameRatio(this.settings.frameRatio);
+      this.settings.lyricRevealMode = normalizeRevealMode(this.settings.lyricRevealMode);
+      this.showCoverShowcase = this.settings.showCoverShowcase !== false;
+
+      if (this.settings.matchSongTheme) {
+        this.refreshCurrentTrackArtwork(true);
+      } else {
+        this._artworkReqId = (this._artworkReqId || 0) + 1;
+        this.applyThemePreset(this.settings.themePreset);
+      }
+
+      this.applyEditStudioState();
+      this.applyLyricRevealMode();
+      this.updateTextDirection();
+
+      if (Array.isArray(this.rawLyrics) && this.rawLyrics.length > 0) {
+        this.recompileCurrentLyrics();
+      } else if (this.compiledLines.length > 0) {
+        this.buildCodeDOM();
+        this.syncWordCursor(this.currentTime || 0);
+      }
+
+      this.saveSettings();
+      this.resizeCanvas();
+      this.applyVisualStyles();
+      this.syncControlsUI();
+
+      const msg = `Imported ${appliedCount} setting${appliedCount === 1 ? "" : "s"}.`;
+      this.showPresetFeedback(msg, false);
+      return { ok: true, appliedCount };
     }
 
     isCinematicActive() {
@@ -3385,6 +3949,7 @@
       this._spPlayPauseHandler = () => {
         if (this._destroyed) return;
         this._lastActivityTime = Date.now();
+        this.syncWordCursor(this.currentTime || 0);
         this.syncControlsUI();
       };
       Spicetify.Player.addEventListener("songchange", this._spSongChangeHandler);
@@ -3994,7 +4559,9 @@
       this.cachedLineNodes = [];
       this.activeLineIndex = -1;
       this.activeTokenIndex = -1;
+      this._lastRevealMode = null;
       this.codePlane.classList.toggle("is-rtl", !!this.isRtlSong);
+      this.codePlane.classList.toggle("is-typewriter", normalizeRevealMode(this.settings.lyricRevealMode) === "typewriter");
 
       this.compiledLines.forEach((line) => {
         const row = document.createElement("div");
@@ -4009,12 +4576,14 @@
         gutter.textContent = String(line.index + 1).padStart(2, "0");
         row.appendChild(gutter);
 
+        const tokenNodes = [];
         line.tokens.forEach((tok, tIdx) => {
           const span = document.createElement("span");
           span.className = `spicetify-code-token spicetify-tok-${tok.type}`;
           span.dataset.tokenIndex = tIdx;
           span.textContent = tok.text + " ";
           row.appendChild(span);
+          tokenNodes.push(span);
         });
 
         const annoMode = this.settings.annotationMode || "both";
@@ -4046,7 +4615,7 @@
         });
 
         this.codePlane.appendChild(row);
-        this.cachedLineNodes.push({ row, line });
+        this.cachedLineNodes.push({ row, line, tokens: tokenNodes, caretEl: null });
       });
     }
 
@@ -4099,6 +4668,14 @@
       if (!this.compiledLines.length) return;
       const offsetSec = (Number(this.settings.syncOffsetMs) || 0) / 1000;
       const effectiveTime = curTime + offsetSec;
+      const revealMode = normalizeRevealMode(this.settings.lyricRevealMode);
+      const isTypewriter = revealMode === "typewriter";
+      const modeChanged = this._lastRevealMode !== revealMode;
+      this._lastRevealMode = revealMode;
+
+      if (this.codePlane) {
+        this.codePlane.classList.toggle("is-typewriter", isTypewriter);
+      }
 
       let activeLineIdx = -1;
       for (let i = 0; i < this.compiledLines.length; i++) {
@@ -4111,17 +4688,56 @@
 
       this.updateInterludeIndicator(effectiveTime, activeLineIdx);
 
-      if (activeLineIdx !== this.activeLineIndex) {
-        const prevRow = this.activeLineIndex >= 0 ? this.cachedLineNodes[this.activeLineIndex]?.row : null;
-        if (prevRow) {
-          prevRow.querySelectorAll(".spicetify-code-token.active-word, .spicetify-code-token.is-word-bounce").forEach((tok) => {
-            tok.classList.remove("active-word", "is-word-bounce");
+      const lineChanged = activeLineIdx !== this.activeLineIndex;
+      if (lineChanged || modeChanged) {
+        const prevNode = this.activeLineIndex >= 0 ? this.cachedLineNodes[this.activeLineIndex] : null;
+        if (prevNode?.row) {
+          prevNode.row.querySelectorAll(".spicetify-code-token.active-word, .spicetify-code-token.is-word-bounce, .spicetify-code-token.is-sung, .spicetify-code-token.is-upcoming").forEach((tok) => {
+            tok.classList.remove("active-word", "is-word-bounce", "is-sung", "is-upcoming");
           });
         }
         this.activeLineIndex = activeLineIdx;
         this.activeTokenIndex = -1;
-        this.cachedLineNodes.forEach(({ row }, idx) => {
-          row.classList.toggle("is-active-line", idx === activeLineIdx);
+      }
+
+      if (lineChanged || modeChanged || (isTypewriter && activeLineIdx < 0)) {
+        this.cachedLineNodes.forEach((node, idx) => {
+          const { row, line } = node;
+          const isActive = idx === activeLineIdx;
+          const dist = activeLineIdx >= 0 ? Math.abs(idx - activeLineIdx) : 99;
+          const isFutureLine = isTypewriter && (activeLineIdx >= 0 ? idx > activeLineIdx : (line.startTime > effectiveTime));
+          row.classList.toggle("is-active-line", isActive);
+          row.classList.toggle("is-near-1", !isActive && dist === 1);
+          row.classList.toggle("is-near-2", !isActive && dist === 2);
+          row.classList.toggle("is-future-line", isFutureLine);
+
+          const tokens = node.tokens || Array.from(row.querySelectorAll(".spicetify-code-token"));
+          if (!isTypewriter) {
+            if (node.caretEl) {
+              node.caretEl.classList.remove("is-visible", "is-typing-solid");
+            }
+            if (modeChanged || !isActive) {
+              for (let j = 0; j < tokens.length; j++) {
+                const tok = tokens[j];
+                tok.classList.remove("is-typing", "is-untyped");
+                tok.style.removeProperty("--type-pct");
+                if (!isActive) {
+                  tok.classList.remove("active-word", "is-word-bounce", "is-sung", "is-upcoming");
+                }
+              }
+            }
+          } else if (!isActive) {
+            if (node.caretEl) {
+              node.caretEl.classList.remove("is-visible", "is-typing-solid");
+            }
+            const isPastLine = activeLineIdx >= 0 ? idx < activeLineIdx : (line.startTime <= effectiveTime);
+            for (let j = 0; j < tokens.length; j++) {
+              const tok = tokens[j];
+              tok.classList.remove("active-word", "is-word-bounce", "is-sung", "is-upcoming", "is-typing");
+              tok.style.removeProperty("--type-pct");
+              tok.classList.toggle("is-untyped", !isPastLine);
+            }
+          }
         });
       }
 
@@ -4135,44 +4751,128 @@
         }
       }
 
-      // Word tracking & beat punch
+      // Word tracking, highlight/typewriter reveal & beat punch
       if (activeLineIdx >= 0) {
         const activeLine = this.compiledLines[activeLineIdx];
         const numTokens = activeLine.tokens.length;
         const timings = activeLine.wordTimings;
+        const hasTimings = Array.isArray(timings) && timings.length > 0;
         let activeTokIdx = 0;
         let wordProgress = 0;
-        if (Array.isArray(timings) && timings.length > 0) {
+        let lineDone = false;
+        if (hasTimings) {
           for (let w = 0; w < timings.length; w++) {
             if (effectiveTime >= timings[w].start) activeTokIdx = w;
           }
-          const wt = timings[Math.min(timings.length - 1, activeTokIdx)];
-          wordProgress = wt
-            ? Math.min(1, Math.max(0, (effectiveTime - wt.start) / Math.max(0.06, wt.end - wt.start)))
-            : 0;
+          const lastEnd = timings[timings.length - 1].end;
+          if (effectiveTime >= lastEnd) {
+            lineDone = true;
+            activeTokIdx = timings.length - 1;
+            wordProgress = 1;
+          } else {
+            const wt = timings[Math.min(timings.length - 1, activeTokIdx)];
+            wordProgress = wt
+              ? Math.min(1, Math.max(0, (effectiveTime - wt.start) / Math.max(0.06, wt.end - wt.start)))
+              : 0;
+          }
         } else if (numTokens > 0) {
           const lineDuration = Math.max(0.1, activeLine.endTime - activeLine.startTime);
           const progress = Math.min(1, Math.max(0, (effectiveTime - activeLine.startTime) / lineDuration));
-          const scaled = progress * numTokens;
-          activeTokIdx = Math.min(numTokens - 1, Math.floor(scaled));
-          wordProgress = Math.min(1, Math.max(0, scaled - activeTokIdx));
+          if (progress >= 0.995) {
+            lineDone = true;
+            activeTokIdx = numTokens - 1;
+            wordProgress = 1;
+          } else {
+            const scaled = progress * numTokens;
+            activeTokIdx = Math.min(numTokens - 1, Math.floor(scaled));
+            wordProgress = Math.min(1, Math.max(0, scaled - activeTokIdx));
+          }
         }
 
-        const rowNode = this.cachedLineNodes[activeLineIdx]?.row;
+        const isPlaying = Boolean(Spicetify?.Player?.isPlaying?.());
+        const curTiming = hasTimings ? timings[Math.min(timings.length - 1, activeTokIdx)] : null;
+        const inWordSpan = curTiming
+          ? (effectiveTime >= curTiming.start && effectiveTime < curTiming.end)
+          : (wordProgress < 0.99);
+        const isActivelyTyping = isPlaying && !lineDone && numTokens > 0 && inWordSpan;
+        this.isCurrentlySpeaking = isActivelyTyping;
+
+        const activeNode = this.cachedLineNodes[activeLineIdx];
+        const rowNode = activeNode?.row;
         if (rowNode) {
-          const allTokens = rowNode.querySelectorAll(".spicetify-code-token");
-          if (activeTokIdx !== this.activeTokenIndex) {
-            this.activeTokenIndex = activeTokIdx;
-            allTokens.forEach((tok, idx) => {
-              const isCur = idx === activeTokIdx;
-              tok.classList.toggle("active-word", isCur);
-              if (isCur && this.settings.beatBounce) {
-                tok.classList.remove("is-word-bounce");
-                void tok.offsetWidth;
-                tok.classList.add("is-word-bounce");
+          const allTokens = activeNode.tokens || Array.from(rowNode.querySelectorAll(".spicetify-code-token"));
+          if (!isTypewriter) {
+            if (activeTokIdx !== this.activeTokenIndex || modeChanged) {
+              this.activeTokenIndex = activeTokIdx;
+              allTokens.forEach((tok, idx) => {
+                const isCur = idx === activeTokIdx;
+                tok.classList.toggle("active-word", isCur);
+                tok.classList.toggle("is-sung", idx < activeTokIdx);
+                tok.classList.toggle("is-upcoming", idx > activeTokIdx);
+                if (isCur && this.settings.beatBounce) {
+                  tok.classList.remove("is-word-bounce");
+                  void tok.offsetWidth;
+                  tok.classList.add("is-word-bounce");
+                  this.audioState.bassPulse = 1.0;
+                }
+              });
+            }
+          } else {
+            if (activeTokIdx !== this.activeTokenIndex) {
+              this.activeTokenIndex = activeTokIdx;
+              if (this.settings.beatBounce && !lineDone) {
                 this.audioState.bassPulse = 1.0;
               }
-            });
+            }
+            let caretAnchorTok = null;
+            let caretPct = 100;
+            for (let idx = 0; idx < allTokens.length; idx++) {
+              const tok = allTokens[idx];
+              tok.classList.remove("active-word", "is-word-bounce", "is-sung", "is-upcoming");
+              if (lineDone || idx < activeTokIdx) {
+                tok.classList.remove("is-typing", "is-untyped");
+                tok.style.removeProperty("--type-pct");
+                caretAnchorTok = tok;
+                caretPct = 100;
+              } else if (idx === activeTokIdx) {
+                const rawText = (tok.textContent || "").trim();
+                const charCount = Math.max(1, Array.from(rawText).length);
+                const typedChars = Math.max(1, Math.ceil(Math.max(0.01, Math.min(1, wordProgress)) * charCount));
+                const pct = Math.min(100, (typedChars / charCount) * 100);
+                tok.classList.remove("is-untyped");
+                tok.classList.add("is-typing");
+                tok.style.setProperty("--type-pct", `${pct.toFixed(1)}%`);
+                caretAnchorTok = tok;
+                caretPct = pct;
+              } else {
+                tok.classList.remove("is-typing");
+                tok.style.removeProperty("--type-pct");
+                tok.classList.add("is-untyped");
+              }
+            }
+
+            if (caretAnchorTok) {
+              if (!activeNode.caretEl) {
+                const caret = document.createElement("span");
+                caret.className = "spicetify-tw-caret tw-caret";
+                caret.setAttribute("aria-hidden", "true");
+                rowNode.appendChild(caret);
+                activeNode.caretEl = caret;
+              }
+              const isRtlLine = rowNode.classList.contains("is-rtl");
+              const frac = Math.max(0, Math.min(1, caretPct / 100));
+              const cx = isRtlLine
+                ? caretAnchorTok.offsetLeft + caretAnchorTok.offsetWidth * (1 - frac) - 2
+                : caretAnchorTok.offsetLeft + caretAnchorTok.offsetWidth * frac + 2;
+              const cy = caretAnchorTok.offsetTop + 2;
+              const ch = Math.max(16, (caretAnchorTok.offsetHeight || 24) - 4);
+              activeNode.caretEl.style.transform = `translate3d(${cx.toFixed(1)}px, ${cy.toFixed(1)}px, 0)`;
+              activeNode.caretEl.style.height = `${ch.toFixed(1)}px`;
+              activeNode.caretEl.classList.add("is-visible");
+              activeNode.caretEl.classList.toggle("is-typing-solid", Boolean(isActivelyTyping));
+            } else if (activeNode.caretEl) {
+              activeNode.caretEl.classList.remove("is-visible", "is-typing-solid");
+            }
           }
 
           if (this.settings.wordTracking === false || this.settings.wordTrackingMode === "stable" || allTokens.length === 0) {
@@ -4244,6 +4944,7 @@
           }
         }
       } else {
+        this.isCurrentlySpeaking = false;
         this.targetPanX = 0;
         this._trackedLineIdx = -1;
         this._lineLastPanX = this.isRtlSong ? -Infinity : Infinity;
@@ -4289,6 +4990,10 @@
       if (this._syncHudTimer) {
         clearTimeout(this._syncHudTimer);
         this._syncHudTimer = null;
+      }
+      if (this._presetFeedbackTimer) {
+        clearTimeout(this._presetFeedbackTimer);
+        this._presetFeedbackTimer = null;
       }
       this.clearCursorIdleState();
       if (this._resizeHandler) {

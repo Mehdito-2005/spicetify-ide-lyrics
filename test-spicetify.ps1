@@ -574,6 +574,160 @@ $Tail = @'
     ext.settingsPanel.querySelector('[data-group="cinematicFx"] button[data-val="true"]')?.click();
     assert("EditStudioCinematicToggleOn", ext.settings.cinematicFx === true && ext.root.classList.contains("is-cinematic-fx"), "cinematicFx ON must restore .is-cinematic-fx");
 
+    // === Depth-of-Field Lyric Cascade, Live Typewriter Mode, Showcase Glow & Presets ===
+    ext.showVisualizer();
+    ext.settings.syncOffsetMs = 0;
+    ext.settings.textDirection = "ltr";
+    ext.settings.activeLineOnly = false;
+    ext.settings.backdropMode = "ambient";
+    ext.applyEditStudioState();
+    ext.syncControlsUI();
+
+    // 1. Depth-of-Field classes (.is-near-1 / .is-near-2) + Highlight sung vs upcoming word contrast
+    ext.compiledLines = ext.compileLyrics([
+      { startTime: 0, text: "line zero alpha beta" },
+      { startTime: 4, text: "line one gamma delta" },
+      { startTime: 8, text: "first middle last" },
+      { startTime: 12, text: "line three epsilon" },
+      { startTime: 16, text: "line four zeta" },
+      { startTime: 20, text: "line five eta" }
+    ]);
+    ext.buildCodeDOM();
+    ext.syncWordCursor(9.5); // middle of line 2 ("middle" token)
+    const dofRows = ext.cachedLineNodes.map((n) => n.row);
+    assert("DofActiveLineIndex", ext.activeLineIndex === 2 && dofRows[2].classList.contains("is-active-line") && !dofRows[2].classList.contains("is-near-1") && !dofRows[2].classList.contains("is-near-2"), "Line 2 must be active without near classes");
+    assert("DofNear1Classes", dofRows[1].classList.contains("is-near-1") && dofRows[3].classList.contains("is-near-1") && !dofRows[1].classList.contains("is-near-2"), "Lines at distance 1 must receive .is-near-1");
+    assert("DofNear2Classes", dofRows[0].classList.contains("is-near-2") && dofRows[4].classList.contains("is-near-2") && !dofRows[0].classList.contains("is-near-1"), "Lines at distance 2 must receive .is-near-2");
+    assert("DofFarLineNoNearClasses", !dofRows[5].classList.contains("is-near-1") && !dofRows[5].classList.contains("is-near-2"), "Lines at distance >= 3 must not receive near classes");
+    const l2Tokens = dofRows[2].querySelectorAll(".spicetify-code-token");
+    assert("HighlightSungVsUpcomingContrast", l2Tokens[0].classList.contains("is-sung") && l2Tokens[1].classList.contains("active-word") && l2Tokens[2].classList.contains("is-upcoming"), "Highlight mode must mark past words .is-sung, current .active-word, and future .is-upcoming");
+
+    // DoF respects Active Line Only and chroma backdrops
+    ext.settingsPanel.querySelector('[data-group="activeLineOnly"] button[data-val="true"]')?.click();
+    assert("DofRespectsActiveLineOnly", window.getComputedStyle(dofRows[1]).visibility === "hidden" && window.getComputedStyle(dofRows[1]).opacity === "0", "Active Line Only must hide .is-near-1 neighboring lines");
+    ext.settingsPanel.querySelector('[data-group="activeLineOnly"] button[data-val="false"]')?.click();
+    clickSpBackdrop("green");
+    assert("DofRespectsChromaBackdrop", window.getComputedStyle(dofRows[1]).filter === "none", "Green chroma backdrop must keep .is-near-1 blur disabled (filter: none)");
+    clickSpBackdrop("ambient");
+
+    // 2. Live Typewriter Mode (default highlight, Settings toggle, persistence, LTR/RTL clip-path, solid vs blinking caret)
+    assert("TypewriterDefaultHighlight", ext.settings.lyricRevealMode === "highlight" && !ext.codePlane.classList.contains("is-typewriter"), "lyricRevealMode must default to highlight");
+    const revealHlBtn = ext.settingsPanel.querySelector('[data-group="lyricRevealMode"] button[data-val="highlight"]');
+    const revealTwBtn = ext.settingsPanel.querySelector('[data-group="lyricRevealMode"] button[data-val="typewriter"]');
+    assert("TypewriterToggleButtonsExist", !!revealHlBtn && !!revealTwBtn, "Highlight | Typewriter toggle buttons must exist in Settings");
+    revealTwBtn.click();
+    const savedTwJson = localStorage.getItem("spicetify_ide_lyrics_settings") || "";
+    const freshTwEngine = new ext.constructor();
+    assert("TypewriterEnabledAndPersisted", ext.settings.lyricRevealMode === "typewriter" && ext.codePlane.classList.contains("is-typewriter") && savedTwJson.includes('"lyricRevealMode":"typewriter"') && freshTwEngine.settings.lyricRevealMode === "typewriter", "Clicking Typewriter must enable .is-typewriter and persist to localStorage");
+
+    ext.compiledLines = ext.compileLyrics([
+      { startTime: 0, text: "previous line done" },
+      { startTime: 4, text: "supercalifragilistic nextword" },
+      { startTime: 8, text: "upcoming future line" }
+    ]);
+    ext.buildCodeDOM();
+    Spicetify.Player.isPlaying = function() { return true; };
+    ext.syncWordCursor(4.35);
+    const twRow0 = ext.cachedLineNodes[0].row;
+    const twRow1 = ext.cachedLineNodes[1].row;
+    const twRow2 = ext.cachedLineNodes[2].row;
+    const twTok0 = twRow1.querySelectorAll(".spicetify-code-token")[0];
+    const twTok1 = twRow1.querySelectorAll(".spicetify-code-token")[1];
+    const twCaret = twRow1.querySelector(".spicetify-tw-caret");
+    const earlyPct = parseFloat(twTok0.style.getPropertyValue("--type-pct")) || 0;
+    const earlyCaretTf = twCaret?.style.transform || "";
+    const earlyCaretX = parseFloat((earlyCaretTf.match(/translate3d\(([-\d.]+)px/) || [])[1] || "0");
+    assert("TypewriterLtrTypingAndHiding", !twRow0.classList.contains("is-future-line") && twRow2.classList.contains("is-future-line") && twTok0.classList.contains("is-typing") && earlyPct > 0 && earlyPct < 100 && twTok1.classList.contains("is-untyped") && window.getComputedStyle(twTok0).clipPath.includes("inset("), "Typewriter LTR must clip active word via inset(), hide untyped words & future lines, got pct=" + earlyPct + " clip=" + window.getComputedStyle(twTok0).clipPath);
+    assert("TypewriterCaretSolidWhileSinging", !!twCaret && twCaret.classList.contains("is-visible") && twCaret.classList.contains("is-typing-solid"), "Typewriter caret must be visible and solid while actively singing");
+
+    ext.syncWordCursor(5.5);
+    const latePct = parseFloat(twTok0.style.getPropertyValue("--type-pct")) || 0;
+    const lateCaretX = parseFloat(((twCaret?.style.transform || "").match(/translate3d\(([-\d.]+)px/) || [])[1] || "0");
+    assert("TypewriterLtrProgressesAndCaretGlides", latePct > earlyPct && lateCaretX > earlyCaretX, "Typewriter --type-pct and caret X must advance LTR: pct " + earlyPct + "->" + latePct + ", x " + earlyCaretX + "->" + lateCaretX);
+
+    Spicetify.Player.isPlaying = function() { return false; };
+    ext.syncWordCursor(5.5);
+    assert("TypewriterCaretBlinksOnPause", twCaret.classList.contains("is-visible") && !twCaret.classList.contains("is-typing-solid"), "Typewriter caret must stay visible and blink (remove .is-typing-solid) when paused");
+    Spicetify.Player.isPlaying = function() { return true; };
+
+    // RTL Typewriter clip-path & leftward caret glide
+    ext.settings.textDirection = "rtl";
+    ext.compiledLines = ext.compileLyrics([
+      { startTime: 0, text: "سلام دنیا امروز" },
+      { startTime: 4, text: "شب بخیر" }
+    ]);
+    ext.buildCodeDOM();
+    ext.syncWordCursor(0.25);
+    const rtlRow0 = ext.cachedLineNodes[0].row;
+    const rtlTok0 = rtlRow0.querySelectorAll(".spicetify-code-token")[0];
+    const rtlCaret = rtlRow0.querySelector(".spicetify-tw-caret");
+    const rtlEarlyX = parseFloat(((rtlCaret?.style.transform || "").match(/translate3d\(([-\d.]+)px/) || [])[1] || "0");
+    ext.syncWordCursor(0.95);
+    const rtlLateX = parseFloat(((rtlCaret?.style.transform || "").match(/translate3d\(([-\d.]+)px/) || [])[1] || "0");
+    assert("TypewriterRtlClipAndCaretGlide", rtlRow0.classList.contains("is-rtl") && rtlTok0.classList.contains("is-typing") && stText.includes(".is-rtl .spicetify-code-token.is-typing") && stText.includes("clip-path: inset(0 0 0 calc(100% - var(--type-pct, 100%)))") && rtlLateX <= rtlEarlyX, "RTL Typewriter must use left-inset clip-path and glide caret right-to-left: " + rtlEarlyX + " -> " + rtlLateX);
+
+    // Switch back to Highlight mode cleanly restores highlight classes & hides caret
+    ext.settings.textDirection = "ltr";
+    revealHlBtn.click();
+    assert("TypewriterBackToHighlightCleansState", ext.settings.lyricRevealMode === "highlight" && !ext.codePlane.classList.contains("is-typewriter") && !rtlCaret.classList.contains("is-visible") && !rtlTok0.classList.contains("is-typing") && !!rtlRow0.querySelector(".spicetify-code-token.active-word"), "Switching back to Highlight must hide caret, clear typing classes, and restore .active-word");
+
+    // 3. Album Cover Showcase Theme-Reactive Ambient Glow
+    if (!ext.showCoverShowcase) ext.toggleCoverShowcase();
+    ext.resizeCanvas();
+    const scGlowShadow = window.getComputedStyle(ext.coverShowcase).boxShadow || "";
+    assert("CoverShowcaseAmbientGlowThemeReactive", stText.includes("#spicetify-ide-cover-showcase::before") && !stText.includes("0 0 42px rgba(255, 79, 168, 0.22)") && scGlowShadow !== "none" && scGlowShadow.length > 0, "Cover Showcase must render a theme-reactive ambient glow without hardcoded pink shadow, got=" + scGlowShadow);
+    clickSpBackdrop("black");
+    assert("CoverShowcaseGlowDisabledOnSolidBackdrop", window.getComputedStyle(ext.coverShowcase).boxShadow === "none", "Solid backdrop must disable Cover Showcase outer glow");
+    clickSpBackdrop("ambient");
+
+    // 4. Settings Preset Export / Import (JSON) + Validation + UI Feedback
+    const copyPresetBtn = ext.settingsPanel.querySelector('button[data-act="copy-preset"]');
+    const importPresetBtn = ext.settingsPanel.querySelector('button[data-act="import-preset"]');
+    const presetImportBox = ext.settingsPanel.querySelector('[data-preset-import-box]');
+    const presetInput = ext.settingsPanel.querySelector('[data-preset-input]');
+    const applyPresetBtn = ext.settingsPanel.querySelector('button[data-act="apply-preset-import"]');
+    const presetFeedback = ext.settingsPanel.querySelector('[data-preset-feedback]');
+    assert("PresetButtonsExist", !!(copyPresetBtn && importPresetBtn && presetImportBox && presetInput && applyPresetBtn && presetFeedback), "Copy Preset, Import Preset, textarea, apply button, and feedback element must exist");
+
+    const exportedStr = ext.exportSettingsPreset();
+    const exportedObj = JSON.parse(exportedStr);
+    assert("PresetExportValidSchema", exportedObj.format === "ide-lyrics-preset" && exportedObj.version === 1 && typeof exportedObj.settings === "object" && exportedObj.settings.cleanFeed === undefined && exportedObj.settings.lyricRevealMode === "highlight", "exportSettingsPreset must emit schema v1 JSON without session-only cleanFeed");
+
+    copyPresetBtn.click();
+    await new Promise((r) => setTimeout(r, 40));
+    assert("PresetCopyButtonFeedback", (presetFeedback.textContent || "").length > 0 && presetFeedback.classList.contains("is-ok") && !presetFeedback.classList.contains("is-err"), "Clicking Copy Preset must show non-error feedback, got=" + presetFeedback.textContent);
+
+    // UI Import flow with valid preset + safety checks (cleanFeed ignored, javascript: URL rejected)
+    presetImportBox.classList.remove("is-open");
+    importPresetBtn.click();
+    assert("PresetImportBoxOpens", presetImportBox.classList.contains("is-open"), "Clicking Import Preset must open the JSON import box");
+    presetInput.value = JSON.stringify({
+      format: "ide-lyrics-preset",
+      version: 1,
+      settings: {
+        themePreset: "dracula",
+        lyricRevealMode: "typewriter",
+        fontSize: 48,
+        rotX: 22,
+        backdropMode: "vignette",
+        cleanFeed: true,
+        customBgUrl: "javascript:alert(1)"
+      }
+    });
+    applyPresetBtn.click();
+    const storedAfterImport = JSON.parse(localStorage.getItem("spicetify_ide_lyrics_settings") || "{}");
+    assert("PresetImportValidAppliesAndPersists", ext.settings.themePreset === "dracula" && ext.settings.matchSongTheme === false && ext.settings.lyricRevealMode === "typewriter" && ext.settings.fontSize === 48 && ext.settings.rotX === 22 && ext.settings.backdropMode === "vignette" && ext.settings.cleanFeed === false && ext.settings.customBgUrl !== "javascript:alert(1)" && storedAfterImport.themePreset === "dracula" && storedAfterImport.lyricRevealMode === "typewriter" && presetFeedback.classList.contains("is-ok") && !presetImportBox.classList.contains("is-open"), "Applying a valid preset must update settings, reject unsafe fields, persist, show .is-ok feedback, and close box");
+
+    // Validation & clamping edge cases
+    const badJsonRes = ext.importSettingsPreset("{invalid json");
+    assert("PresetRejectsMalformedJson", badJsonRes.ok === false && presetFeedback.classList.contains("is-err") && ext.settings.themePreset === "dracula", "Malformed JSON must be rejected without mutating existing settings");
+    const badArrayRes = ext.importSettingsPreset("[1,2,3]");
+    assert("PresetRejectsNonObject", badArrayRes.ok === false && ext.settings.fontSize === 48, "Array JSON must be rejected cleanly");
+    const badEmptyRes = ext.importSettingsPreset('{"unknownField":"nope"}');
+    assert("PresetRejectsNoValidKeys", badEmptyRes.ok === false && ext.settings.fontSize === 48, "JSON with zero recognized valid settings must be rejected");
+    const clampRes = ext.importSettingsPreset('{"fontSize":999,"rotX":-999,"lyricRevealMode":"highlight"}');
+    assert("PresetClampsOutOfRangeValues", clampRes.ok === true && ext.settings.fontSize === 64 && ext.settings.rotX === -30 && ext.settings.lyricRevealMode === "highlight", "Import must clamp numeric settings to valid bounds");
+
     ext.destroy();
     assert("DestroyCleansUpLifecycle", ext._destroyed === true && ext.rafId === null && ext._idleCheckTimer === null && !document.getElementById("spicetify-ide-visualizer-root") && !window.__SPICETIFY_IDE_LYRICS_ACTIVE__, "destroy() must clear rafId, timers, DOM, and global reference");
     assert("Bug26DestroyRemovesSpicetifyPlayerListeners", spRemovedCount === 3, "destroy() must remove all 3 Spicetify.Player listeners, got=" + spRemovedCount);
