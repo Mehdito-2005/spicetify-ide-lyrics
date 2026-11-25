@@ -1,125 +1,78 @@
 # Spicetify IDE Lyrics
 
-Synchronized lyrics visualizer styled as code syntax with 3D perspective, audio wave animation, and screensaver mode for Spotify.
+![Platform](https://img.shields.io/badge/Spotify-Spicetify-1db954)
+![OS](https://img.shields.io/badge/OS-Windows%20%7C%20macOS%20%7C%20Linux-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
----
+A zero-dependency 3D IDE-style synchronized lyrics visualizer extension for **Spotify** via **Spicetify**. Renders live synced lyrics as tilted syntax-highlighted code with audio-reactive background waves, album cover showcase, lock screen / screensaver mode, and an Edit / Recording Studio mode.
 
 ## Features
 
-- **Code Syntax Formatting**: Displays synchronized lyrics tokenized into keywords, methods, strings, variables, numbers, and punctuation.
-- **Spotify Synced Lyrics Integration**: Fetches real-time synced lyrics from Spotify's Color Lyrics endpoint with automatic template generation for un-synced tracks.
-- **Perspective Camera**: Configurable 3D tilt angles (Pitch, Yaw, Roll) and field-of-view scaling.
-- **Background Waveform Animation**: Reactive audio waves drawn on an HTML5 canvas.
-- **Word Zoom & Beat Motion**: Optional camera focus on currently sung lyrics with onset pulse animations.
-- **Lock Screen & Screensaver**: Fullscreen ambient view with clock, date, and now-playing track card, plus a minimal screensaver with configurable idle timeouts (30s, 1m, 2m, 5m).
-- **International Language Support**: Correct rendering for Latin, CJK (Chinese, Japanese, Korean), Cyrillic, and RTL scripts (Persian, Arabic).
-- **Zero External Dependencies**: Self-contained script with embedded styles and canvas rendering.
-
----
+- **3D Code Lyrics Stage**: Tokenizes Spotify synced lyrics with live word tracking, depth-of-field blur, and dynamic vocal zoom.
+- **Spotify Color Lyrics & Album Showcase**: Pulls live synced lyrics from Spotify with automatic album-art color extraction and an optional Album Cover Showcase view.
+- **Adlib Comments & Multi-Language Support**: Formats adlibs as IDE `// comments` (`Separate`, `Hide`, `Inline`), supports inline romanization/translation annotations, and handles Latin, CJK, Cyrillic, and RTL scripts (Persian, Arabic, Hebrew).
+- **Edit & Recording Mode**: Toggle **Clean Feed** (`E`), switch backdrops (`Ambient`, `Vignette`, `Black`, `Green`/`Blue` chroma, or custom image/video), and enable `9:16`, `16:9`, or `1:1` framing guides.
+- **Lock Screen & Screensaver**: Fullscreen ambient view with clock, date, and track card, plus configurable auto-idle timeouts (`30s`, `1m`, `2m`, `5m`).
+- **Self-Contained**: Single-file extension (`ideLyrics.js`) with embedded styles, canvas waves, and persistent `localStorage` settings.
 
 ## Installation
 
-### Automated (Linux & macOS)
+### Windows (PowerShell)
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-spicetify.ps1
+```
 
-Run the installation script in terminal:
-
+### Linux & macOS
 ```bash
 chmod +x ./install-spicetify.sh
 ./install-spicetify.sh
 ```
 
-### Automated (Windows)
-
-Run the installer via PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install-spicetify.ps1
-```
-
-The script copies `ideLyrics.js` to your Spicetify extensions folder, enables it in configuration, and applies the changes.
-
 ### Manual Installation
-
-1. Copy `ideLyrics.js` into your Spicetify extensions directory:
-   - **Linux**: `~/.config/spicetify/Extensions/`
-   - **macOS**: `~/spicetify_data/Extensions/` or `~/.config/spicetify/Extensions/`
+1. Copy `ideLyrics.js` into your Spicetify Extensions directory:
    - **Windows**: `%APPDATA%\spicetify\Extensions\`
-
-2. Enable and apply the extension:
+   - **macOS**: `~/spicetify_data/Extensions/` or `~/.config/spicetify/Extensions/`
+   - **Linux**: `~/.config/spicetify/Extensions/`
+2. Enable and apply:
    ```bash
    spicetify config extensions ideLyrics.js
    spicetify apply
    ```
+3. Restart Spotify and click **IDE Lyrics** in the top bar (or press `Ctrl+Alt+L` / `Cmd+Option+L`).
 
-3. Restart Spotify and click the **IDE Lyrics** button in the top bar, or press `Ctrl+Alt+L` (`Cmd+Option+L` on macOS).
+## Keyboard Shortcuts
 
----
-
-## Keybindings
-
-| Linux / Windows | macOS | Action | Scope |
-| :--- | :--- | :--- | :--- |
+| Windows / Linux | macOS | Action | Scope |
+| --- | --- | --- | --- |
 | `Ctrl + Alt + L` | `Cmd + Option + L` | Toggle visualizer | Global |
 | `Ctrl + Shift + L` | `Cmd + Shift + L` | Toggle fullscreen | Global |
 | `Ctrl + Alt + S` | `Cmd + Option + S` | Trigger Lock Screen / Screensaver | Global |
-| `Space` or `K` | `Space` or `K` | Play / Pause | In visualizer |
-| `Shift + Right` / `N` | `Cmd + Right` / `Shift + Right` / `N` | Next track | In visualizer |
-| `Shift + Left` / `P` | `Cmd + Left` / `Shift + Left` / `P` | Previous track | In visualizer |
-| `Right Arrow` | `Right Arrow` | Seek forward (+5s) | In visualizer |
-| `Left Arrow` | `Left Arrow` | Seek backward (-5s) | In visualizer |
+| `E` | `E` | Toggle Clean Feed (Edit Mode) | In visualizer |
 | `F` | `F` | Toggle fullscreen | In visualizer |
-| `Esc` | `Esc` | Wake from lock / Exit settings | While locked or in settings |
-| `Mouse Move / Key` | `Mouse Move / Key` | Dismiss lock screen or screensaver | While locked or in saver |
+| `Space` / `K` | `Space` / `K` | Play / Pause | In visualizer |
+| `Shift + Right` / `N` | `Cmd + Right` / `N` | Next track | In visualizer |
+| `Shift + Left` / `P` | `Cmd + Left` / `P` | Previous track | In visualizer |
+| `Left` / `Right` | `Left` / `Right` | Seek ±5s | In visualizer |
+| `[` / `]` / `\` | `[` / `]` / `\` | Quick lyric sync nudge (`-50ms` / `+50ms` / reset) | In visualizer |
+| `Esc` | `Esc` | Wake from lock / Close settings | Active overlay |
 | Click lyric line | Click lyric line | Jump playback to line timestamp | In visualizer |
 
----
+## Recording Spotify Audio (Linux & macOS)
 
-## Configuration
-
-Click **Settings** on the control pill to adjust:
-- **Perspective Angles**: Tilt X (Pitch: -30° to +45°), Tilt Y (Yaw: -45° to +45°), Tilt Z (Roll: -20° to +20°).
-- **Typography & Spacing**: Font size (14px–64px), token padding, line spacing, and line gutter indentation.
-- **Visual Effects**: Token glow intensity, depth of field blur, and background wave amplitude.
-- **Word Zoom & Beat Motion**: Toggle camera zoom on active phrases and rhythm pulse on vocal onsets.
-- **Screensaver & Lock Screen**: Choose between Off, Screensaver, or Lock Screen mode, with auto-idle trigger delays (Off, 30s, 1m, 2m, 5m).
-
-All settings persist in `localStorage`.
-
----
-
-## Audio Recording (Linux & macOS)
-
-### Linux (PipeWire / PulseAudio)
-Screen recorders may default to microphone capture rather than the audio output sink:
-- **OBS Studio (PipeWire)**: Add source **Application Audio Capture (PipeWire)** -> select `spotify`.
-- **PulseAudio Volume Control (`pavucontrol`)**: Under the **Recording** tab, change the recorder input to **Monitor of Built-in Audio Analog Stereo**.
-
-### macOS (BlackHole / ScreenCaptureKit)
-macOS restricts system audio recording without a virtual loopback device or ScreenCaptureKit permissions:
-- **OBS Studio 29+**: Add source **macOS Screen Capture** -> **Application Capture** -> select `Spotify` with **Audio Capture** enabled.
-- **BlackHole 2ch**: Install via `brew install blackhole-2ch`. Create a **Multi-Output Device** in Audio MIDI Setup including your output device and BlackHole, then set your recorder's input to **BlackHole 2ch**.
-
----
+- **Linux (OBS + PipeWire)**: Add an **Application Audio Capture (PipeWire)** source targeting `spotify`, or select **Monitor of Built-in Audio** in `pavucontrol`.
+- **macOS (OBS 29+)**: Add **macOS Screen Capture → Application Capture** targeting `Spotify` with audio capture enabled (or route via `brew install blackhole-2ch`).
 
 ## Uninstallation
 
-### Automated (Linux & macOS)
-```bash
-chmod +x ./uninstall-spicetify.sh
-./uninstall-spicetify.sh
-```
-
-### Automated (Windows)
-```powershell
-powershell -ExecutionPolicy Bypass -File .\uninstall-spicetify.ps1
-```
-
----
+- **Windows**: `powershell -ExecutionPolicy Bypass -File .\uninstall-spicetify.ps1`
+- **Linux & macOS**: `chmod +x ./uninstall-spicetify.sh && ./uninstall-spicetify.sh`
 
 ## Testing
-
-Run the test suite using Edge headless:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\test-spicetify.ps1
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
