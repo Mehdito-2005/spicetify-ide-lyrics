@@ -2,9 +2,12 @@
 
 ![Platform](https://img.shields.io/badge/Spotify-Spicetify-1db954)
 ![OS](https://img.shields.io/badge/OS-Windows%20%7C%20macOS%20%7C%20Linux-blue)
+![Release](https://img.shields.io/github/v/release/Mehdito-2005/spicetify-ide-lyrics)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A zero-dependency 3D IDE-style synchronized lyrics visualizer extension for **Spotify** via **Spicetify**. Renders live synced lyrics as tilted syntax-highlighted code with audio-reactive background waves, album cover showcase, lock screen / screensaver mode, and an Edit / Recording Studio mode.
+
+> **Prefer a GUI installer?** [IDE Lyrics Studio](https://github.com/Mehdito-2005/ide-lyrics-studio) includes a built-in **Setup & Integrations Wizard** that installs and applies this Spicetify extension in one click alongside optional Cider and Live Wallpaper modes.
 
 ## Features
 
@@ -14,26 +17,28 @@ A zero-dependency 3D IDE-style synchronized lyrics visualizer extension for **Sp
 - **Adlib Comments & Multi-Language Support**: Formats adlibs as IDE `// comments` (`Separate`, `Hide`, `Inline`), supports inline romanization/translation annotations, and handles Latin, CJK, Cyrillic, and RTL scripts (Persian, Arabic, Hebrew).
 - **Edit & Recording Mode**: Toggle **Clean Feed** (`E`), switch backdrops (`Ambient`, `Vignette`, `Black`, `Green`/`Blue` chroma, or custom image/video), and enable `9:16`, `16:9`, or `1:1` framing guides.
 - **Lock Screen & Screensaver**: Fullscreen ambient view with clock, date, and track card, plus configurable auto-idle timeouts (`30s`, `1m`, `2m`, `5m`).
-- **Self-Contained**: Single-file extension (`ideLyrics.js`) with embedded styles, canvas waves, and persistent `localStorage` settings.
+- **Self-Contained & Marketplace Ready**: Single-file extension (`ideLyrics.js`) with a Spicetify Marketplace `manifest.json` and preview card.
 
-## Installation
+## Quick 1-Line Install (No Git Required)
 
 ### Windows (PowerShell)
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install-spicetify.ps1
+irm https://raw.githubusercontent.com/Mehdito-2005/spicetify-ide-lyrics/main/install-remote.ps1 | iex
 ```
 
-### Linux & macOS
+### macOS & Linux
 ```bash
-chmod +x ./install-spicetify.sh
-./install-spicetify.sh
+curl -fsSL https://raw.githubusercontent.com/Mehdito-2005/spicetify-ide-lyrics/main/install-remote.sh | bash
 ```
 
-### Manual Installation
-1. Copy `ideLyrics.js` into your Spicetify Extensions directory:
-   - **Windows**: `%APPDATA%\spicetify\Extensions\`
-   - **macOS**: `~/spicetify_data/Extensions/` or `~/.config/spicetify/Extensions/`
-   - **Linux**: `~/.config/spicetify/Extensions/`
+### Spicetify Marketplace
+This repository includes a valid `manifest.json` and the `spicetify-extensions` GitHub topic so it can be discovered or installed via Spicetify Marketplace.
+
+## Local / Manual Installation
+
+1. Copy `ideLyrics.js` (from [Releases](https://github.com/Mehdito-2005/spicetify-ide-lyrics/releases) or a local clone) into your Spicetify Extensions directory:
+   - **Windows**: `%APPDATA%\spicetify\Extensions\` (or run `.\install-spicetify.ps1`)
+   - **macOS / Linux**: `~/.config/spicetify/Extensions/` (or run `./install-spicetify.sh`)
 2. Enable and apply:
    ```bash
    spicetify config extensions ideLyrics.js

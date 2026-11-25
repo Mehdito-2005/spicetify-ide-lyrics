@@ -1,0 +1,24 @@
+[
+  {
+    "name": "IDE Lyrics",
+    "description": "3D IDE-style syntax-highlighted synced lyrics visualizer for Spotify with Live Typewriter mode, audio waves, album cover showcase, lock screen, and Edit Studio mode.",
+    "preview": "preview.png",
+    "main": "ideLyrics.js",
+    "readme": "README.md",
+    "branch": "main",
+    "authors": [
+      {
+        "name": "Mehdito-2005",
+        "url": "https://github.com/Mehdito-2005"
+      }
+    ],
+    "tags": [
+      "lyrics",
+      "visualizer",
+      "3d",
+      "ide",
+      "typewriter",
+      "fullscreen"
+    ]
+  }
+]
